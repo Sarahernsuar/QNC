@@ -1,0 +1,27 @@
+# Clinical Trial comparing two drugs for Multiple Sclerosis 
+import matplotlib.pyplot as plt
+import numpy as np
+from scipy.stats import binom
+# Parameters
+# Na:number of patients in group A Ponesimoid Tx, Nb: number of patients in group B Teriflunomide Tx
+# Pa: probability of relapse in group A, Pb: probability of relapse in group B
+# k: all possible number of patients experiencing a relapse from 0 to the total number of patients in each group
+Na = 567
+Nb = 566
+Pa = 0.293
+Pb = 0.394
+ka = np.arange(0, Na+1) 
+kb = np.arange(0, Nb+1)
+prob_a = binom.pmf(ka, Na, Pa)
+prob_b = binom.pmf(kb, Nb, Pb)
+print ("Prob_a is the probability of possible relapses in patients treated with Ponesimod and Prob_b is the probability of possible relapses in patients treated with Teriflunomide")
+#Plotting the individual binomial distribution of each group
+plt.figure(figsize=(10, 6))
+plt.bar(ka, prob_a, width=0.4, label='Ponesimod (Group A)', color='lightblue', align='edge')
+plt.bar(kb, prob_b, width=-0.4, label='Teriflunomide (Group B)', color='lightgreen', align='edge')
+plt.xlabel('Number of Patients Experiencing Relapse')
+plt.ylabel('Probability')
+plt.title('Binomial Distribution of Relapses between Ponesimod (Group A) and Teriflunomide (Group B)')
+plt.legend()
+plt.tight_layout()
+plt.show()
