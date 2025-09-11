@@ -1,1 +1,237 @@
+from math import comb
+#Exercise #1 
+# Parameters
+n = 10   # total quanta
+p = 0.2  # probability of release
+
+# Compute probabilities for 0 through n quanta released
+probs = []
+for k in range(n+1):
+    prob = comb(n, k) * (p**k) * ((1-p)**(n-k))
+    probs.append(prob)
+    print(f"P({k} quanta) = {prob:.5f}")
+
+# Check that probabilities sum to ~1
+print("Sum of probabilities:", sum(probs))
+#P(0 quanta) = 0.10737
+#P(1 quanta) = 0.26844
+#P(2 quanta) = 0.30199
+#P(3 quanta) = 0.20133
+#P(4 quanta) = 0.08808
+#P(5 quanta) = 0.02642
+#P(6 quanta) = 0.00551
+#P(7 quanta) = 0.00079
+#P(8 quanta) = 0.00007
+#P(9 quanta) = 0.00000
+#P(10 quanta) = 0.00000
+#Exercise #2
+from math import comb
+
+# Parameters
+n = 14   # number of available quanta
+k = 8    # observed releases
+
+# Probabilities to test
+p_values = [i/10 for i in range(1, 11)]  # 0.1, 0.2, ..., 1.0
+
+results = {}
+for p in p_values:
+    prob = comb(n, k) * (p**k) * ((1-p)**(n-k))
+    results[p] = prob
+    print(f"P(X=8 | p={p:.1f}) = {prob:.6f}")
+
+# Find which p is most likely
+best_p = max(results, key=results.get)
+print(f"\nMost probable release probability given data: p = {best_p:.1f}")
+#If the true probability of release for 8 quanta was p.1, there is a 0.000016 chance of that occuring. For 8 quanta the most likely scenario is p.5 or p 0.6 which yield 0.18 and 0.20 chance respectively
+#Exercise #3
+import math
+import numpy as np
+import matplotlib.pyplot as plt
+# Parameters
+# n = number of quanta releases per measurement
+# k1, k2 = observed quanta released, K are independent
+n = 10
+k1 = 3
+k2 = 5
+k_obs = [k1, k2]
+# Probability of seeing K sucess in n trials
+def binom_pmf(k, n, p):
+    return math.comb(n, k) * (p**k) * ((1-p)**(n-k))
+#Total likelihood is the product of the individual likelihoods while the log likelihood is the sum 
+def total_likelihood(k_list, n, p):
+    L = 1.0
+    for k in k_list:
+        L *= binom_pmf(k, n, p)
+    return L
+
+
+def total_loglikelihood(k_list, n, p):
+    s = 0.0
+    for k in k_list:
+        # Use the binomial pmf formula in log form to avoid numerical underflow
+        if p == 0.0 and k > 0:
+            return -np.inf
+        if p == 1.0 and k < n:
+            return -np.inf
+        s += (math.log(math.comb(n, k)) +
+              k * math.log(p if p > 0 else 1) +
+              (n - k) * math.log(1 - p if p < 1 else 1))
+    return s
+# Likelihood at p=0.1
+p0 = 0.1
+L_p0 = total_likelihood(k_obs, n, p0)
+LL_p0 = total_loglikelihood(k_obs, n, p0)
+print(f"At p={p0}: Total likelihood = {L_p0:.6e}, Total log-likelihood = {LL_p0:.6f}")
+#Likelihoods at diffrent p values
+ps_deciles = np.linspace(0, 1, 11)
+L_deciles = [total_likelihood(k_obs, n, p) for p in ps_deciles]
+LL_deciles = [total_loglikelihood(k_obs, n, p) for p in ps_deciles]
+
+
+# Find the maximum likelihood 
+imax = int(np.nanargmax(LL_deciles))
+p_hat_dec = ps_deciles[imax]
+print("\nLikelihoods at deciles:")
+for p, L, LL in zip(ps_deciles, L_deciles, LL_deciles):
+    print(f"p={p:.1f}, L={L:.6e}, LogL={LL:.6f}")
+print(f"\nMax on decile grid: p={p_hat_dec:.1f}")
+# Plot likelihood and log-likelihood at diffrent p values
+plt.bar(ps_deciles, L_deciles, width=0.05, color='skyblue', edgecolor='black')
+plt.xlabel("Release probability p")
+plt.ylabel("Likelihood")
+plt.title("Total likelihood across deciles")
+plt.show()
+plt.plot(ps_deciles, LL_deciles, marker='o')
+plt.xlabel("Release probability p")
+plt.ylabel("Log-likelihood")
+plt.title("Total log-likelihood across deciles")
+plt.show()
+#seach along course maximum 
+left = max(0.0, p_hat_dec - 0.1)
+right = min(1.0, p_hat_dec + 0.1)
+ps_fine = np.linspace(left, right, 401)
+LL_fine = [total_loglikelihood(k_obs, n, p) for p in ps_fine]
+imax_fine = int(np.nanargmax(LL_fine))
+p_hat_fine = ps_fine[imax_fine]
+print(f"Refined maximum likelihood estimate: p ≈ {p_hat_fine:.4f}")
+plt.plot(ps_fine, LL_fine)
+plt.axvline(p_hat_fine, color='red', linestyle='--')
+plt.xlabel("Release probability p")
+plt.ylabel("Log-likelihood")
+plt.title("Refined log-likelihood near maximum")
+plt.show()
+#More measurements make p more precise
+#Function to replicate measurements
+def replicate_measurements(k_list, T):
+    return k_list * T
+Ts = [1, 2, 5, 10]
+p_grid = np.linspace(0, 1, 501)
+for T in Ts:
+    k_big = replicate_measurements(k_obs, T)
+    LLs = [total_loglikelihood(k_big, n, p) for p in p_grid]
+    plt.plot(p_grid, LLs, label=f"{len(k_big)} measurements")
+    plt.xlabel("Release probability p")
+    plt.ylabel("Log-likelihood")
+    plt.title("Effect of sample size on log-likelihood curve")
+    plt.legend()
+    plt.show()
+# Closed-form MLE for binomial with independent samples: total successes / total trials
+mle_est = sum(k_obs) / (len(k_obs) * n)
+print(f"Closed-form MLE for these data: p_hat = {mle_est:.4f}")
+#Exercise #4
+# Data: counts of how many times k releases were observed
+counts = {
+    0: 0,
+    1: 0,
+    2: 3,
+    3: 7,
+    4: 10,
+    5: 19,
+    6: 26,
+    7: 16,
+    8: 16,
+    9: 5,
+    10: 5,
+    11: 0,
+    12: 0,
+    13: 0,
+    14: 0,
+}
+
+# number of trials per experiment (n)
+n = max(counts.keys())
+# total number of experiments
+num_experiments = sum(counts.values())
+# Stotal number of successes across all experiments
+total_successes = sum(k * c for k, c in counts.items())
+# Total number of Bernoulli trials = num_experiments * n
+total_trials = num_experiments * n
+# maximum likelihood estimate of p
+p_hat = total_successes / total_trials
+print(f"p-hat = {p_hat:.6f}")
+#Exercise #5
+import math
+import numpy as np
+import matplotlib.pyplot as plt
+
+# Parameters 
+n = 14            # number of available quanta (trials per experiment)
+k_obs = 7         # observed number of releases after temperature change
+p0 = 0.3          # null hypothesis: true release probability is 0.3
+
+# binomial probability mass function (PMF)
+def binom_pmf(k, n, p):
+    return math.comb(n, k) * (p**k) * ((1-p)**(n-k))
+
+# Probability of exactly k_obs successes under H0
+p_eq = binom_pmf(k_obs, n, p0)
+
+# One-sided p-value: probability of seeing k_obs or more
+p_ge = sum(binom_pmf(k, n, p0) for k in range(k_obs, n+1))
+
+# Two-sided exact p-value:
+# Sum probabilities of all outcomes with probability <= P(X=k_obs)
+pmf_vals = np.array([binom_pmf(k, n, p0) for k in range(n+1)])
+threshold = pmf_vals[k_obs]
+p_two_sided = pmf_vals[pmf_vals <= threshold].sum()
+
+# Normal approximation for intuition
+mean0 = n * p0
+sd0 = math.sqrt(n * p0 * (1 - p0))
+z = (k_obs - mean0) / sd0
+from math import erf, sqrt
+p_ge_norm_approx = 0.5 * (1 - erf(z / sqrt(2)))
+
+print(f"Parameters: n={n}, k_obs={k_obs}, p0={p0}")
+print(f"P(X = {k_obs}) under H0 = {p_eq:.6e}")
+print(f"One-sided p-value (P(X >= {k_obs})) = {p_ge:.6e}")
+print(f"Two-sided exact p-value = {p_two_sided:.6e}")
+print(f"Mean under H0 = {mean0:.3f}, SD = {sd0:.3f}, z = {z:.3f}")
+print(f"Normal approx one-sided p-value = {p_ge_norm_approx:.6e}")
+
+# Binomial PMF with observed value marked
+ks = np.arange(n+1)
+pmf = [binom_pmf(k, n, p0) for k in ks]
+
+plt.figure(figsize=(8,4))
+plt.bar(ks, pmf)
+plt.axvline(k_obs, linestyle='--', color='red')
+plt.scatter([k_obs], [pmf[k_obs]], color='red', zorder=5)
+plt.xlabel('Number of releases (k)')
+plt.ylabel('P(X = k) under H0')
+plt.title('Binomial PMF (n=14, p=0.3) with observed value marked')
+plt.grid(axis='y', linestyle=':', linewidth=0.5)
+plt.show()
+
+# Plot 2: Binomial PMF with tail (k >= observed) highlighted ---
+plt.figure(figsize=(8,4))
+plt.bar(ks, pmf)
+for k in range(k_obs, n+1):
+    plt.scatter([k], [pmf[k]], color='orange', marker='s', s=40, zorder=6)
+plt.xlabel('Number of releases (k)')
+plt.ylabel('P(X = k) under H0')
+plt.title(f'Tail P(X >= {k_obs}) under H0 = {p_ge:.4f}')
+plt.grid(axis='y', linestyle=':', linewidth=0.5)
+plt.show()
 
