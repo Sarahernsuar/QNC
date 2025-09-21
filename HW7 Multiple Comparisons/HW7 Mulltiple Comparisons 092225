@@ -1,0 +1,117 @@
+# Excersie 1 
+# #First, simulate multiple (say, 1000) t-tests comparing two samples with equal means and standard deviations, and save the p-values. Obviously, at p<0.05 we expect that ~5% of the simulations to yield a "statistically significant" result (of rejecting the NULL hypothesis that the samples come from distributions with equal means).
+import numpy as np
+from scipy import stats
+
+ALPHA = 0.05          # naive per-test cutoff
+Q = 0.05              # BH false discovery rate (among the results you call “significant,” you aim for about 5% to be false positives on average)
+M = 1000              # number of parallel tests
+N = 30                # sample size per group
+SIGMA = 1.0           # standard deviation in each group
+SEED = 12345          # Random Number Generator (same sequence each run for reproducibility)
+def p_value_two_sample(a, b):
+    """
+    Two-sample Welch's t-test (unequal variances).
+    Returns a two-sided p-value using SciPy.
+    """
+    a = np.asarray(a); b = np.asarray(b)
+    t_stat, p_val = stats.ttest_ind(a, b, equal_var=False)
+    return float(p_val)
+
+
+def simulate_pvalues(mu1, mu2, n_tests=M, n_per_group=N, sigma=SIGMA, seed=SEED):
+    """
+    Simulate 'n_tests' independent two-sample comparisons and return their p-values.
+    """
+    rng = np.random.default_rng(seed)
+    p = np.empty(n_tests, dtype=float)
+    for i in range(n_tests):
+        a = rng.normal(mu1, sigma, n_per_group)
+        b = rng.normal(mu2, sigma, n_per_group)
+        p[i] = p_value_two_sample(a, b)
+    return p
+
+
+def bonferroni_mask(pvals, alpha=ALPHA):
+    """
+    Bonferroni: mark p <= alpha/m as significant. Returns (mask, threshold).
+    """
+    m = len(pvals)
+    thr = alpha / m
+    return (pvals <= thr), thr
+
+
+def bh_mask(pvals, q=Q):
+    """
+    Benjamini–Hochberg FDR control. Returns (mask, cutoff_p).
+    """
+    p = np.asarray(pvals)
+    m = p.size
+    order = np.argsort(p)
+    p_sorted = p[order]
+    crit = (np.arange(1, m + 1) / m) * q    # (i/m)*q
+    passed = p_sorted <= crit
+
+    if not np.any(passed):
+        return np.zeros(m, dtype=bool), 0.0
+
+    k = np.max(np.where(passed)[0])         # largest rank that passes
+    cutoff = p_sorted[k]
+    return (p <= cutoff), float(cutoff)
+
+
+def summarize(pvals, label, all_null=True):
+    """
+    Print a small summary comparing:
+    - naive p<ALPHA
+    - Bonferroni
+    - Benjamini–Hochberg
+    """
+    naive = (pvals <= ALPHA)
+    bonf_mask_, bonf_thr = bonferroni_mask(pvals, ALPHA)
+    bh_mask_,   bh_cut  = bh_mask(pvals, Q)
+
+    print("\n" + "=" * 70)
+    print(label)
+    print("=" * 70)
+    print(f"Number of tests (m): {len(pvals)}")
+    print(f"Naive alpha       : {ALPHA}")
+    print(f"BH FDR (q)        : {Q}")
+    print("-" * 70)
+    print(f"Naive p<alpha             : {naive.sum()}  (expected ~{int(ALPHA*len(pvals))} fp if all null)")
+    print(f"Bonferroni p<{bonf_thr:0.6f}   : {bonf_mask_.sum()}")
+    print(f"BH cutoff p<={bh_cut:0.6f}     : {bh_mask_.sum()}")
+    if all_null:
+        print(f"(Under global null, all rejections are false positives.)")
+    else:
+        print(f"(Here we simulated a real effect: rejections reflect true discoveries.)")
+    print("-" * 70)
+
+
+def main():
+    # ------------------ PART 1 ------------------
+    print("\n>>> PART 1 — Global null: simulate many tests with equal means (mu1=0, mu2=0).")
+    pvals_null = simulate_pvalues(mu1=0.0, mu2=0.0)
+    summarize(pvals_null, "PART 1 RESULTS — Global null (mu1=0, mu2=0)", all_null=True)
+
+    # ------------------ PART 2 ------------------
+    print("\n>>> PART 2 — Apply Bonferroni and Benjamini–Hochberg to the Part 1 p-values (shown above).")
+    print("Note: Part 2 is already included in the summary block: counts for Bonferroni and BH are printed.")
+  
+
+    # ------------------ PART 3 ------------------
+    print("\n>>> PART 3 — Introduce a real effect and see power increase.")
+    print("Scenario A: mu1=1, mu2=2 (moderate difference).")
+    pvals_eff_A = simulate_pvalues(mu1=1.0, mu2=2.0)
+    summarize(pvals_eff_A, "PART 3A RESULTS — Real effect (mu1=1, mu2=2)", all_null=False)
+
+
+    print("\nScenario B: mu1=1, mu2=2.8 (larger difference).")
+    pvals_eff_B = simulate_pvalues(mu1=1.0, mu2=2.8)
+    summarize(pvals_eff_B, "PART 3B RESULTS — Larger effect (mu1=1, mu2=2.8)", all_null=False)
+
+    print("\nDone. Try changing M, N, ALPHA, Q, or the means to see different behavior.")
+
+
+if __name__ == "__main__":
+    main()
