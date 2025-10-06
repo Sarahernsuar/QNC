@@ -1,0 +1,170 @@
+"""
+FIGURE SUMMARY:
+  Figure 1 – RT and inverse-RT histograms
+  Figure 2 – Step-by-step reciprobit construction
+  Figure 3 – Reciprobit plots for all conditions
+"""
+
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy.stats import norm
+
+
+# =================================
+# 1. Generate synthetic RT data 
+# =================================
+
+def generate_example_data():
+    """
+    Simulates 4 experimental conditions with different mean decision rates.
+    LATER model concept:
+        - Decision variable rises linearly at rate r until it hits a threshold.
+        - Reaction time (RT) = distance / rate.
+        - Rate is Gaussian-distributed across trials.
+    So 1/RT is approximately Gaussian-distributed.
+    """
+    rng = np.random.default_rng(7)
+    distance = 1.0
+    n_trials = 500
+    labels = ["Condition A", "Condition B", "Condition C", "Condition D"]
+    mean_rates = [3.2, 3.0, 2.7, 2.5]     # Higher rate ⇒ faster RT
+    sd_rates = [0.45, 0.45, 0.45, 0.45]
+
+    data = []
+    for mu, sd in zip(mean_rates, sd_rates):
+        rates = rng.normal(mu, sd, n_trials)
+        rates = np.clip(rates, 0.2, None)  # avoid negative/zero rates
+        rts = distance / rates
+
+        # Add a small subset of "express" saccades (very short RTs)
+        n_express = int(0.07 * n_trials)
+        idx = rng.choice(n_trials, n_express, replace=False)
+        rts[idx] = rng.uniform(0.08, 0.18, n_express)
+        data.append(rts)
+
+    return data, labels
+
+
+# ==============================================================
+# 2. Figure 1 – RT and inverse-RT histograms
+# ==============================================================
+
+def figure1_rt_histograms(data, labels):
+   
+    fig, axes = plt.subplots(len(data)+1, 2, figsize=(10, 10))
+    fig.canvas.manager.set_window_title("Figure 1 – RT and inverse-RT histograms")
+
+    rt_bins = np.arange(0, 1.2, 0.02)
+    inv_bins = np.arange(0, 10.0, 0.2)
+
+    # --- ALL TRIALS COMBINED ---
+    all_rts = np.concatenate(data)
+    axes[0,0].hist(all_rts, bins=rt_bins, edgecolor="black")
+    axes[0,0].set_title("All Trials – RT distribution")
+    axes[0,0].set_xlabel("RT (s)"); axes[0,0].set_ylabel("Count")
+
+    axes[0,1].hist(1/all_rts, bins=inv_bins, edgecolor="black")
+    axes[0,1].set_title("All Trials – inverse RT distribution")
+    axes[0,1].set_xlabel("1 / RT (1/s)")
+
+    # --- PER CONDITION ---
+    for i,(rts,label) in enumerate(zip(data,labels),1):
+        axes[i,0].hist(rts, bins=rt_bins, edgecolor="black")
+        axes[i,0].set_title(f"{label} – RT")
+        axes[i,0].set_xlabel("RT (s)")
+
+        axes[i,1].hist(1/rts, bins=inv_bins, edgecolor="black")
+        axes[i,1].set_title(f"{label} – 1/RT")
+        axes[i,1].set_xlabel("1 / RT (1/s)")
+
+    fig.suptitle("Figure 1 – RT and inverse-RT histograms", fontsize=14, y=1.02)
+    fig.tight_layout()
+    plt.show()
+
+
+# ==============================================================
+# 3. Figure 2 – Step-by-step reciprobit tutorial
+# ==============================================================
+
+def figure2_reciprobit_tutorial(rts):
+    """
+   
+    """
+    fig, axes = plt.subplots(4, 1, figsize=(7, 12))
+    fig.canvas.manager.set_window_title("Figure 2 – Step-by-step reciprobit tutorial")
+
+    # Sort RTs and compute cumulative probabilities
+    rts_sorted = np.sort(rts)
+    n = len(rts_sorted)
+    cumprob = np.arange(1, n+1)/n
+    probit  = norm.ppf(cumprob)
+
+    # --- 1a. Probability → Probit ---
+    axes[0].plot(cumprob, probit, "k-")
+    axes[0].axhline(1, color="r"); axes[0].axhline(-1, color="r")
+    axes[0].set_title("1a. Probabilities → Probit (z-score)")
+    axes[0].set_xlabel("Cumulative probability")
+    axes[0].set_ylabel("Probit (z)")
+
+    # --- 2. Empirical cumulative RT ---
+    axes[1].plot(rts_sorted, cumprob, "ko-")
+    axes[1].set_title("2. Empirical cumulative RT distribution")
+    axes[1].set_xlabel("RT (s)"); axes[1].set_ylabel("Cum prob")
+
+    # --- 3. Empirical cumulative −1/RT ---
+    axes[2].plot(-1/rts_sorted, cumprob, "ko-")
+    axes[2].set_title("3. Empirical cumulative −1/RT distribution")
+    axes[2].set_xlabel("−1 / RT (1/s)"); axes[2].set_ylabel("Cum prob")
+
+    # --- 4. Reciprocity (Reciprobit) plot ---
+    axes[3].plot(-1/rts_sorted, probit, "ko")
+    axes[3].grid(True)
+    axes[3].set_title("4. Reciprocity (Reciprobit) plot")
+    axes[3].set_xlabel("−1 / RT (1/s)")
+    axes[3].set_ylabel("Probit (z)")
+
+    fig.suptitle("Figure 2 – Step-by-step reciprobit construction", fontsize=14, y=0.99)
+    plt.tight_layout()
+    plt.show()
+
+
+# ==============================================================
+# 4. Figure 3 – Reciprobit plots for all conditions
+# ==============================================================
+
+def figure3_reciprobit_all(data, labels, express_cutoff=0.2):
+    
+    fig, ax = plt.subplots(figsize=(8, 6))
+    fig.canvas.manager.set_window_title("Figure 3 – Reciprobit plots for all conditions")
+    ax.grid(True)
+    colors = ["b","r","g","m"]
+
+    for rts,label,color in zip(data,labels,colors):
+        rts_sorted = np.sort(rts)
+        cumprob = np.arange(1,len(rts_sorted)+1)/len(rts_sorted)
+        probit  = norm.ppf(cumprob)
+        is_express = rts_sorted < express_cutoff
+
+        # Express trials (fast) = crosses; others = circles
+        ax.plot(-1/rts_sorted[is_express], probit[is_express], "x", color=color, ms=8)
+        ax.plot(-1/rts_sorted[~is_express], probit[~is_express], "o", color=color, label=label)
+
+    ax.set_xlabel("−1 / RT (1/s)")
+    ax.set_ylabel("Probit (z)")
+    ax.set_title("Figure 3 – Reciprobit plots for all conditions")
+    ax.legend(title="Condition")
+    plt.show()
+
+
+# ==============================================================
+# MAIN
+# ==============================================================
+
+def main():
+    data, labels = generate_example_data()
+    figure1_rt_histograms(data, labels)
+    figure2_reciprobit_tutorial(data[0])
+    figure3_reciprobit_all(data, labels)
+
+if __name__ == "__main__":
+    main()
